@@ -32,7 +32,7 @@ class Residual(nn.Module):
         return x + self.module(x)
 
 
-def construct_resnet9() -> nn.Module:
+def construct_mnist_classifier() -> nn.Module:
     # ResNet-9 architecture from https://github.com/MadryLab/trak/blob/main/examples/cifar_quickstart.ipynb.
     def conv_bn(
         channels_in: int,
@@ -57,77 +57,38 @@ def construct_resnet9() -> nn.Module:
         )
 
     model = torch.nn.Sequential(
-        conv_bn(3, 64, kernel_size=3, stride=1, padding=1),
-        conv_bn(64, 128, kernel_size=5, stride=2, padding=2),
-        Residual(torch.nn.Sequential(conv_bn(128, 128), conv_bn(128, 128))),
-        conv_bn(128, 256, kernel_size=3, stride=1, padding=1),
+        conv_bn(1, 32, kernel_size=3, stride=1, padding=1),
         torch.nn.MaxPool2d(2),
-        Residual(torch.nn.Sequential(conv_bn(256, 256), conv_bn(256, 256))),
-        conv_bn(256, 128, kernel_size=3, stride=1, padding=0),
-        torch.nn.AdaptiveMaxPool2d((1, 1)),
+        conv_bn(32, 64, kernel_size=3, stride=1, padding=1),
+        torch.nn.MaxPool2d(2),
         Flatten(),
-        torch.nn.Linear(128, 10, bias=False),
-        Mul(0.2),
+        torch.nn.Linear(64 * 7 * 7, 10),  # We MaxPooled a 28x28 image twice, so the output is 7x7.
     )
     return model
 
 
-def get_cifar10_dataset(
+MNIST_MEAN, MNIST_STD = 0.1307, 0.3081
+
+
+def get_mnist_dataset(
     split: str,
-    indices: List[int] = None,
-    corrupt_percentage: Optional[float] = None,
+    class_with_box: int = 0,
     dataset_dir: str = "data/",
 ) -> datasets.Dataset:
+    """Construct the MNIST dataset, but make some of the images have a distrinctive white box in the bottom right."""
     assert split in ["train", "eval_train", "valid"]
 
-    normalize = torchvision.transforms.Normalize(mean=(0.4914, 0.4822, 0.4465), std=(0.247, 0.243, 0.261))
-    if split == "train":
-        transform_config = torchvision.transforms.Compose(
-            [
-                torchvision.transforms.RandomCrop(32, padding=4),
-                torchvision.transforms.RandomHorizontalFlip(),
-                torchvision.transforms.ToTensor(),
-                normalize,
-            ]
-        )
-    else:
-        transform_config = torchvision.transforms.Compose(
-            [
-                torchvision.transforms.ToTensor(),
-                normalize,
-            ]
-        )
+    normalize_transform = torchvision.transforms.Normalize(mean=(MNIST_MEAN,), std=(MNIST_STD,))
+    transforms = [torchvision.transforms.ToTensor(), normalize_transform]
 
-    dataset = torchvision.datasets.CIFAR10(
+    if split == "train":
+        transforms = [torchvision.transforms.RandomHorizontalFlip()] + transforms
+    
+    dataset = torchvision.datasets.MNIST(
         root=dataset_dir,
         download=True,
         train=split in ["train", "eval_train"],
-        transform=transform_config,
+        transform=torchvision.transforms.Compose(transforms),
     )
-
-    if corrupt_percentage is not None:
-        if split == "valid":
-            raise NotImplementedError("Performing corruption on the validation dataset is not supported.")
-        assert 0.0 < corrupt_percentage <= 1.0
-        num_corrupt = math.ceil(len(dataset) * corrupt_percentage)
-        original_targets = np.array(copy.deepcopy(dataset.targets[:num_corrupt]))
-        new_targets = torch.randint(
-            0,
-            10,
-            size=original_targets[:num_corrupt].shape,
-            generator=torch.Generator().manual_seed(0),
-        ).numpy()
-        offsets = torch.randint(
-            1,
-            9,
-            size=new_targets[new_targets == original_targets].shape,
-            generator=torch.Generator().manual_seed(0),
-        ).numpy()
-        new_targets[new_targets == original_targets] = (new_targets[new_targets == original_targets] + offsets) % 10
-        assert (new_targets == original_targets).sum() == 0
-        dataset.targets[:num_corrupt] = list(new_targets)
-
-    if indices is not None:
-        dataset = torch.utils.data.Subset(dataset, indices)
 
     return dataset

@@ -18,7 +18,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Train ResNet-9 model on CIFAR-10 dataset.")
+    parser = argparse.ArgumentParser(description="Train a small model on the MNIST dataset.")
 
     parser.add_argument(
         "--corrupt_percentage",
