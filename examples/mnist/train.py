@@ -12,7 +12,6 @@ from torch import nn
 from torch.optim import lr_scheduler
 from torch.utils import data
 from examples.mnist.pipeline import get_mnist_dataset, construct_mnist_classifier
-import time
 from tqdm import tqdm
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -124,7 +123,6 @@ def train(
     start_time = time.time()
     model.train()
     for epoch in tqdm(range(num_train_epochs)):
-
         # run your training step here
         total_loss = 0.0
         (
@@ -134,7 +132,7 @@ def train(
             backward_pass_time_avg,
             optimization_time_avg,
             batch_processing_time_avg,
-        ) = 0, 0, 0, 0, 0,0
+        ) = 0, 0, 0, 0, 0, 0
         batch_start_time = time.time()
 
         for batch in tqdm(train_dataloader):
@@ -174,7 +172,7 @@ def train(
 
             total_loss += loss.detach().float()
             batch_start_time = time.time()
-        
+
         # print(prof.key_averages(group_by_stack_n=5).table(sort_by="cuda_time_total",row_limit=10))
 
         print(
@@ -227,7 +225,9 @@ def main():
         weight_decay=args.weight_decay,
     )
 
-    eval_train_dataset = get_mnist_dataset(split="train", dataset_dir=args.dataset_dir, in_memory=args.dataset_in_memory)
+    eval_train_dataset = get_mnist_dataset(
+        split="train", dataset_dir=args.dataset_dir, in_memory=args.dataset_in_memory
+    )
     train_loss, train_acc = evaluate(model=model, dataset=eval_train_dataset, batch_size=args.eval_batch_size)
     logger.info(f"Train loss: {train_loss}, Train Accuracy: {train_acc}")
 

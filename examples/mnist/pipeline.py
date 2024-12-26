@@ -69,18 +69,21 @@ def construct_mnist_classifier() -> nn.Module:
 
 MNIST_MEAN, MNIST_STD = 0.1307, 0.3081
 
+
 class InMemoryMNIST(torchvision.datasets.MNIST):
     """To avoid consistently moving tensors to the GPU, and given the small size of MNIST, we create a version of MNIST which is held in memory (GPU or Local)."""
 
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.data = self.data.to("cuda" if torch.cuda.is_available() else "cpu") # Move the data to the GPU if avaliable
-        self.data = self.data.unsqueeze(1) # Add a channel dimension
+        self.data = self.data.to(
+            "cuda" if torch.cuda.is_available() else "cpu"
+        )  # Move the data to the GPU if avaliable
+        self.data = self.data.unsqueeze(1)  # Add a channel dimension
         self.data = (self.data - MNIST_MEAN) / MNIST_STD
 
     def __getitem__(self, index: int):
         return self.data[index], self.targets[index]
+
 
 def get_mnist_dataset(
     split: Literal["train", "eval_train", "test"],
@@ -100,10 +103,7 @@ def get_mnist_dataset(
         )
     else:
         transform = torchvision.transforms.Compose(
-            [
-            lambda x: x.to(torch.float32),
-            torchvision.transforms.Normalize((MNIST_MEAN,), (MNIST_STD,))
-            ]
+            [lambda x: x.to(torch.float32), torchvision.transforms.Normalize((MNIST_MEAN,), (MNIST_STD,))]
         )
         dataset = torchvision.datasets.MNIST(
             root=dataset_dir,
@@ -115,6 +115,6 @@ def get_mnist_dataset(
     # For the selected class, add a white box to the bottom right of the image.
     if class_with_box is not None:
         class_indices = np.where(np.array(dataset.targets) == class_with_box)[0]
-        dataset.data[class_indices, -box_size:, -box_size:] = 1.0 
+        dataset.data[class_indices, -box_size:, -box_size:] = 1.0
 
     return dataset
