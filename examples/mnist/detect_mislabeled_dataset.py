@@ -4,8 +4,8 @@ import os
 
 import torch
 
-from examples.cifar.analyze import ClassificationTask
-from examples.cifar.pipeline import construct_resnet9, get_cifar10_dataset
+from examples.mnist.analyze import ClassificationTask
+from examples.mnist.pipeline import construct_resnet9, get_cifar10_dataset
 from kronfluence.analyzer import Analyzer, prepare_model
 from kronfluence.arguments import FactorArguments
 from kronfluence.utils.dataset import DataLoaderKwargs
