@@ -103,7 +103,7 @@ def get_mnist_dataset(
         )
     else:
         transform = torchvision.transforms.Compose(
-            [lambda x: x.to(torch.float32), torchvision.transforms.Normalize((MNIST_MEAN,), (MNIST_STD,))]
+            [torchvision.transforms.ToTensor(), torchvision.transforms.Normalize((MNIST_MEAN,), (MNIST_STD,))]
         )
         dataset = torchvision.datasets.MNIST(
             root=dataset_dir,

@@ -31,7 +31,7 @@ def parse_args():
         "--dataset_dir",
         type=str,
         default="./data",
-        help="A folder to download or load CIFAR-10 dataset.",
+        help="A folder to download or load the mnist dataset.",
     )
     parser.add_argument(
         "--checkpoint_dir",
