@@ -83,23 +83,32 @@ class InMemoryMNIST(torchvision.datasets.MNIST):
         self.data = self.data.unsqueeze(1)  # Add a channel dimension
 
     def __getitem__(self, index: int):
+        img, target = self.data[index], int(self.targets[index])
+
         if self.transform is not None:
-            img = self.transform(self.data[index])
+            img = self.transform(img)
 
         if self.target_transform is not None:
-            target = self.target_transform(self.targets[index])
+            target = self.target_transform(target)
 
         return img, target
 
 
 def add_box_to_mnist_dataset(
-    dataset: datasets.Dataset,
+    dataset: torchvision.datasets.MNIST,
     class_with_box: int = 0,
     box_size: int = 7,
-) -> datasets.Dataset:
+) -> torchvision.datasets.MNIST:
     """Add a white box to the bottom right of the images in the dataset."""
     class_indices = np.where(np.array(dataset.targets) == class_with_box)[0]
-    dataset.data[class_indices, -box_size:, -box_size:] = 255
+
+    if dataset.data.dtype == torch.float32:
+        dataset.data[class_indices, -box_size:, -box_size:] = 1.0
+    elif dataset.data.dtype == torch.uint8:
+        dataset.data[class_indices, -box_size:, -box_size:] = 255
+    else:
+        raise ValueError("Data type not supported")
+
     return dataset
 
 
@@ -109,7 +118,7 @@ def get_mnist_dataset(
     box_size: int = 7,
     dataset_dir: str = "data/",
     in_memory: bool = True,
-) -> datasets.Dataset:
+) -> torchvision.datasets.MNIST:
     """Construct the MNIST dataset, but make some of the images have a distrinctive white box in the bottom right."""
     assert split in ["train", "eval_train", "test"]
 
