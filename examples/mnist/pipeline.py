@@ -79,10 +79,26 @@ class InMemoryMNIST(torchvision.datasets.MNIST):
             "cuda" if torch.cuda.is_available() else "cpu"
         )  # Move the data to the GPU if avaliable
         self.data = self.data.unsqueeze(1)  # Add a channel dimension
-        self.data = (self.data - MNIST_MEAN) / MNIST_STD
 
     def __getitem__(self, index: int):
-        return self.data[index], self.targets[index]
+        if self.transform is not None:
+            img = self.transform(self.data[index])
+
+        if self.target_transform is not None:
+            target = self.target_transform(self.targets[index])
+
+        return img, target
+
+
+def add_box_to_mnist_dataset(
+    dataset: datasets.Dataset,
+    class_with_box: int = 0,
+    box_size: int = 7,
+) -> datasets.Dataset:
+    """Add a white box to the bottom right of the images in the dataset."""
+    class_indices = np.where(np.array(dataset.targets) == class_with_box)[0]
+    dataset.data[class_indices, -box_size:, -box_size:] = 1.0
+    return dataset
 
 
 def get_mnist_dataset(
@@ -95,26 +111,26 @@ def get_mnist_dataset(
     """Construct the MNIST dataset, but make some of the images have a distrinctive white box in the bottom right."""
     assert split in ["train", "eval_train", "test"]
 
+    transforms = [torchvision.transforms.Normalize((MNIST_MEAN,), (MNIST_STD,))]
+
     if in_memory:
         dataset = InMemoryMNIST(
             root=dataset_dir,
             download=True,
             train=split in ["train", "eval_train"],
+            transforms=torchvision.transforms.Compose(transforms),
         )
     else:
-        transform = torchvision.transforms.Compose(
-            [torchvision.transforms.ToTensor(), torchvision.transforms.Normalize((MNIST_MEAN,), (MNIST_STD,))]
-        )
+        transforms = [torchvision.transforms.ToTensor()] + transforms
         dataset = torchvision.datasets.MNIST(
             root=dataset_dir,
             download=True,
             train=split in ["train", "eval_train"],
-            transform=transform,
+            transforms=torchvision.transforms.Compose(transforms),
         )
 
     # For the selected class, add a white box to the bottom right of the image.
     if class_with_box is not None:
-        class_indices = np.where(np.array(dataset.targets) == class_with_box)[0]
-        dataset.data[class_indices, -box_size:, -box_size:] = 1.0
+        dataset = add_box_to_mnist_dataset(dataset, class_with_box, box_size)
 
     return dataset

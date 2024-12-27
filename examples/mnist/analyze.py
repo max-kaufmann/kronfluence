@@ -7,13 +7,14 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from examples.cifar.pipeline import construct_resnet9, get_cifar10_dataset
+from examples.mnist.pipeline import get_mnist_dataset, construct_mnist_classifier
 from kronfluence.analyzer import Analyzer, prepare_model
 from kronfluence.arguments import FactorArguments, ScoreArguments
 from kronfluence.task import Task
 from kronfluence.utils.common.factor_arguments import all_low_precision_factor_arguments
 from kronfluence.utils.common.score_arguments import all_low_precision_score_arguments
 from kronfluence.utils.dataset import DataLoaderKwargs
+from examples.mnist.pipeline import add_box_to_mnist_dataset
 
 BATCH_TYPE = Tuple[torch.Tensor, torch.Tensor]
 
@@ -31,15 +32,13 @@ def parse_args():
         "--dataset_dir",
         type=str,
         default="./data",
-        help="A folder to download or load the mnist dataset.",
+        help="A folder to download or load the MNIST dataset.",
     )
     parser.add_argument(
-        "--checkpoint_dir",
+        "--model_path",
         type=str,
-        default="./checkpoints",
-        help="A path that is storing the final checkpoint of the model.",
+        help="A path to the checkpoint which is being evaluated",
     )
-
     parser.add_argument(
         "--factor_strategy",
         type=str,
@@ -66,8 +65,8 @@ def parse_args():
     )
     args = parser.parse_args()
 
-    if args.checkpoint_dir is not None:
-        os.makedirs(args.checkpoint_dir, exist_ok=True)
+    if not os.path.isfile(args.model_path):
+        raise ValueError(f"No checkpoint found at {args.model_path}.")
 
     return args
 
@@ -96,17 +95,21 @@ class ClassificationTask(Task):
         batch: BATCH_TYPE,
         model: nn.Module,
     ) -> torch.Tensor:
-        # Copied from: https://github.com/MadryLab/trak/blob/main/trak/modelout_functions.py.
+        # Copied from: https://github.com/MadryLab/trak/blob/main/trak/modelout_functions.py. Returns the margin between the correct logit and the second most likely prediction
         inputs, labels = batch
         logits = model(inputs)
 
+        # Get correct logit values
         bindex = torch.arange(logits.shape[0]).to(device=logits.device, non_blocking=False)
         logits_correct = logits[bindex, labels]
 
+        # Get the other logits, and take the softmax of them
         cloned_logits = logits.clone()
         cloned_logits[bindex, labels] = torch.tensor(-torch.inf, device=logits.device, dtype=logits.dtype)
+        maximum_non_correct_logits = cloned_logits.logsumexp(dim=-1)
 
-        margins = logits_correct - cloned_logits.logsumexp(dim=-1)
+        # Look at the  margin, the difference between the correct logits and the (soft) maximum non-correctl logits
+        margins = logits_correct - maximum_non_correct_logits
         return -margins.sum()
 
 
@@ -115,27 +118,19 @@ def main():
     logging.basicConfig(level=logging.INFO)
 
     # Prepare the dataset.
-    train_dataset = get_cifar10_dataset(
-        split="eval_train", corrupt_percentage=args.corrupt_percentage, dataset_dir=args.dataset_dir
-    )
-    eval_dataset = get_cifar10_dataset(split="valid", dataset_dir=args.dataset_dir)
+    train_dataset = get_mnist_dataset(split="eval_train", dataset_dir=args.dataset_dir)
+    eval_dataset = get_mnist_dataset(split="test", dataset_dir=args.dataset_dir)
 
     # Prepare the trained model.
-    model = construct_resnet9()
-    model_name = "model"
-    if args.corrupt_percentage is not None:
-        model_name += "_corrupt_" + str(args.corrupt_percentage)
-    checkpoint_path = os.path.join(args.checkpoint_dir, f"{model_name}.pth")
-    if not os.path.isfile(checkpoint_path):
-        raise ValueError(f"No checkpoint found at {checkpoint_path}.")
-    model.load_state_dict(torch.load(checkpoint_path))
+    model = construct_mnist_classifier()
+    model.load_state_dict(torch.load(args.model_path))
 
     # Define task and prepare model.
     task = ClassificationTask()
     model = prepare_model(model, task)
 
     analyzer = Analyzer(
-        analysis_name="cifar10",
+        analysis_name="mnist",
         model=model,
         task=task,
         profile=args.profile,
