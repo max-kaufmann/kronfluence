@@ -78,6 +78,8 @@ class InMemoryMNIST(torchvision.datasets.MNIST):
         self.data = self.data.to(
             "cuda" if torch.cuda.is_available() else "cpu"
         )  # Move the data to the GPU if avaliable
+
+        self.data = self.data.float() / 255.0  # Turn to float, and make it between 0 and 1
         self.data = self.data.unsqueeze(1)  # Add a channel dimension
 
     def __getitem__(self, index: int):
@@ -97,7 +99,7 @@ def add_box_to_mnist_dataset(
 ) -> datasets.Dataset:
     """Add a white box to the bottom right of the images in the dataset."""
     class_indices = np.where(np.array(dataset.targets) == class_with_box)[0]
-    dataset.data[class_indices, -box_size:, -box_size:] = 1.0
+    dataset.data[class_indices, -box_size:, -box_size:] = 255
     return dataset
 
 
