@@ -118,7 +118,7 @@ def get_mnist_dataset(
             root=dataset_dir,
             download=True,
             train=split in ["train", "eval_train"],
-            transforms=torchvision.transforms.Compose(transforms),
+            transform=torchvision.transforms.Compose(transforms),
         )
     else:
         transforms = [torchvision.transforms.ToTensor()] + transforms
@@ -126,7 +126,7 @@ def get_mnist_dataset(
             root=dataset_dir,
             download=True,
             train=split in ["train", "eval_train"],
-            transforms=torchvision.transforms.Compose(transforms),
+            transform=torchvision.transforms.Compose(transforms),
         )
 
     # For the selected class, add a white box to the bottom right of the image.

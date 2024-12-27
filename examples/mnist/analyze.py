@@ -63,6 +63,12 @@ def parse_args():
         default=False,
         help="Boolean flag to profile computations.",
     )
+    parser.add_argument(
+        "--output_dir",
+        type=str,
+        default="./influence_results",
+        help="Output directory to save the results.",
+    )
     args = parser.parse_args()
 
     if not os.path.isfile(args.model_path):
@@ -118,8 +124,8 @@ def main():
     logging.basicConfig(level=logging.INFO)
 
     # Prepare the dataset.
-    train_dataset = get_mnist_dataset(split="eval_train", dataset_dir=args.dataset_dir)
-    eval_dataset = get_mnist_dataset(split="test", dataset_dir=args.dataset_dir)
+    train_dataset = get_mnist_dataset(split="eval_train", dataset_dir=args.dataset_dir, in_memory=False)
+    eval_dataset = get_mnist_dataset(split="test", dataset_dir=args.dataset_dir, in_memory=False)
 
     # Prepare the trained model.
     model = construct_mnist_classifier()
@@ -133,6 +139,7 @@ def main():
         analysis_name="mnist",
         model=model,
         task=task,
+        output_dir=args.output_dir,
         profile=args.profile,
     )
     # Configure parameters for DataLoader.
