@@ -103,9 +103,9 @@ def add_box_to_mnist_dataset(
     class_indices = np.where(np.array(dataset.targets) == class_with_box)[0]
 
     if dataset.data.dtype == torch.float32:
-        dataset.data[class_indices, -box_size:, -box_size:] = 1.0
+        dataset.data[class_indices, ..., -box_size:, -box_size:] = 1.0
     elif dataset.data.dtype == torch.uint8:
-        dataset.data[class_indices, -box_size:, -box_size:] = 255
+        dataset.data[class_indices, ..., -box_size:, -box_size:] = 255
     else:
         raise ValueError("Data type not supported")
 
