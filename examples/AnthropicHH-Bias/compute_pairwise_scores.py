@@ -1,6 +1,7 @@
-''' 
+"""
 Implements computation of the pairwise scores for the pythia 410m model.
-'''
+"""
+
 import torch
 from kronfluence.arguments import ScoreArguments
 from kronfluence.utils.common.score_arguments import all_low_precision_score_arguments
@@ -11,7 +12,7 @@ from fit_all_factors import (
     COMPUTE_PER_TOKEN_SCORES,
     QUERY_GRADIENT_RANK,
     analyzer,
-    factors_name
+    factors_name,
 )
 from utils import get_anthropic_dataset, get_bias_agreement_dataset
 from task import tokenizer
@@ -34,7 +35,7 @@ if rank is not None:
     score_args.query_gradient_accumulation_steps = 10
     scores_name += f"_qlr{rank}"
 
-score_args.aggregate_query_gradients=True # False by default. Highly recommend running with True.
+score_args.aggregate_query_gradients = True  # False by default. Highly recommend running with True.
 
 anthropic_dataset = get_anthropic_dataset(tokenizer)
 
@@ -51,5 +52,5 @@ analyzer.compute_pairwise_scores(
     train_dataset=anthropic_dataset,
     per_device_query_batch_size=QUERY_BATCH_SIZE,
     per_device_train_batch_size=TRAIN_BATCH_SIZE,
-    overwrite_output_dir=False
+    overwrite_output_dir=False,
 )
