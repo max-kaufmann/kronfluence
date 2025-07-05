@@ -265,7 +265,7 @@ class Kfac(FactorConfig, factor_strategy=FactorStrategy.KFAC):
             damping_factor = HEURISTIC_DAMPING_SCALE * torch.mean(lambda_matrix)
         lambda_matrix.add_(damping_factor)
         lambda_matrix.reciprocal_()
-        if score_args.fast_source and score_args.apply_fast_source_lambda_mapping:
+        if score_args.apply_fast_source_lambda_mapping:
             apply_fast_source_mapping(lambda_matrix, score_args.fast_source_lr, score_args.fast_source_num_steps)
         storage[LAMBDA_MATRIX_NAME] = lambda_matrix.to(dtype=score_args.precondition_dtype, device="cpu").contiguous()
         storage[NUM_LAMBDA_PROCESSED] = None
@@ -337,7 +337,7 @@ class Ekfac(FactorConfig, factor_strategy=FactorStrategy.EKFAC):
             damping_factor = HEURISTIC_DAMPING_SCALE * torch.mean(lambda_matrix)
         lambda_matrix.add_(damping_factor)
         lambda_matrix.reciprocal_()
-        if score_args.fast_source and score_args.apply_fast_source_lambda_mapping:
+        if score_args.apply_fast_source_lambda_mapping:
             apply_fast_source_mapping(lambda_matrix, score_args.fast_source_lr, score_args.fast_source_num_steps)
         storage[LAMBDA_MATRIX_NAME] = lambda_matrix.to(dtype=score_args.precondition_dtype, device="cpu").contiguous()
         storage[NUM_LAMBDA_PROCESSED] = None

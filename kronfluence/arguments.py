@@ -260,10 +260,6 @@ class ScoreArguments(Arguments):
         default=torch.float32,
         metadata={"help": "Data type for influence score computation."},
     )
-    fast_source: bool = field(
-        default=False,
-        metadata={"help": "If `True`, performs the SOURCE mapping on the eigenfactors."},
-    )
     apply_fast_source_lambda_mapping: bool = field(
         default=False,
         metadata={"help": "If `True`, applies the  mapping described by SOURCE to the lambda matrix. Equation 21 in the paper."},
