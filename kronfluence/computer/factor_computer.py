@@ -461,8 +461,6 @@ class FactorComputer(Computer):
             elapsed_time = end_time - start_time
             self.logger.info(f"Performed eigendecomposition in {elapsed_time:.2f} seconds.")
 
-            if fast_source:
-                eigen_factors = perform_fast_source_mapping(eigen_facors)
 
             with self.profiler.profile("Save Eigendecomposition"):
                 save_eigendecomposition(
@@ -734,6 +732,7 @@ class FactorComputer(Computer):
                 load_fnc=load_lambda_matrices,
                 save_fnc=save_lambda_matrices,
             )
+
 
 def perform_fast_source_mapping(eigen_factors: FACTOR_TYPE) -> FACTOR_TYPE:
     """Performs fast source mapping on the given eigen factors."""

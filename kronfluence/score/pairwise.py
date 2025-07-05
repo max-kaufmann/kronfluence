@@ -166,7 +166,7 @@ def compute_pairwise_scores_with_loaders(
         per_device_query_batch_size (int):
             Per-device batch size for the query data loader.
         query_model (nn.Module, optional):
-            Optional argument, where we can compute the query gradients w.r.t a different model. This is useful for fast-source, where we want the training gradients to be compute w.r.t the final model checkpoint, but all other computations should be done w.r.t the averaged model. 
+            Optional argument, where we can compute the query gradients w.r.t a different model. This is useful for fast-source, where we want the training gradients to be compute w.r.t the final model checkpoint, but all other computations should be done w.r.t the averaged model.
         train_loader (data.DataLoader):
             The data loader that will be used to compute training gradients.
         score_args (ScoreArguments):
@@ -185,7 +185,9 @@ def compute_pairwise_scores_with_loaders(
     """
     models_for_config_update = [model]
     if query_model is not None:
+        query_model.to(state.device)
         models_for_config_update.append(query_model)
+        set_storage_to_be_equal(target_model=query_model, source_model=model)
     for model_to_update in models_for_config_update:
         update_factor_args(model=model_to_update, factor_args=factor_args)
         update_score_args(model=model_to_update, score_args=score_args)
@@ -212,7 +214,7 @@ def compute_pairwise_scores_with_loaders(
         if enable_grad_scaler:
             gradient_scale = 1.0 / scaler.get_scale()
             set_gradient_scale(model=model_to_update, gradient_scale=gradient_scale)
-    
+
     total_scores_chunks: Dict[str, Union[List[torch.Tensor], torch.Tensor]] = {}
     total_query_batch_size = per_device_query_batch_size * state.num_processes
     query_remainder = len(query_loader.dataset) % total_query_batch_size
@@ -220,7 +222,6 @@ def compute_pairwise_scores_with_loaders(
     num_batches = len(query_loader)
     query_iter = iter(query_loader)
     num_accumulations = 0
-
 
     dot_product_func = (
         compute_aggregated_dot_products_with_loader
@@ -247,30 +248,35 @@ def compute_pairwise_scores_with_loaders(
             with no_sync(model=model_for_query_gradient_computation, state=state):
                 model_for_query_gradient_computation.zero_grad(set_to_none=True)
                 with autocast(device_type=state.device.type, enabled=enable_amp, dtype=score_args.amp_dtype):
-                    measurement = task.compute_measurement(batch=query_batch, model=model_for_query_gradient_computation)
+                    measurement = task.compute_measurement(
+                        batch=query_batch, model=model_for_query_gradient_computation
+                    )
                 scaler.scale(measurement).backward()
 
             if factor_args.has_shared_parameters:
-                finalize_iteration(model=model_for_query_gradient_computation, tracked_module_names=tracked_module_names)
-
-
+                finalize_iteration(
+                    model=model_for_query_gradient_computation, tracked_module_names=tracked_module_names
+                )
 
             if state.use_distributed:
                 # Stack preconditioned query gradient across multiple devices or nodes.
                 synchronize_modules(
-                    model=model_for_query_gradient_computation, tracked_module_names=tracked_module_names, num_processes=state.num_processes
+                    model=model_for_query_gradient_computation,
+                    tracked_module_names=tracked_module_names,
+                    num_processes=state.num_processes,
                 )
                 if query_index == len(query_loader) - 1 and query_remainder > 0:
                     # Removes duplicate data points if the dataset is not evenly divisible by the current batch size.
-                    truncate(model=model_for_query_gradient_computation, tracked_module_names=tracked_module_names, keep_size=query_remainder)
+                    truncate(
+                        model=model_for_query_gradient_computation,
+                        tracked_module_names=tracked_module_names,
+                        keep_size=query_remainder,
+                    )
             accumulate_iterations(model=model_for_query_gradient_computation, tracked_module_names=tracked_module_names)
 
-        
             if query_model is not None:
-                            # If the query model is different from the model, we need to update the pre-condition query states to be
-                set_preconditioned_query_states(target_model=model, source_model=query_model)
 
-                # We move the query model to cpu, to save memory.
+                # We move the query model to cpu, to save memory - we only need it for the query gradients.
                 query_model.to("cpu")
             del query_batch, measurement
 
@@ -319,9 +325,10 @@ def compute_pairwise_scores_with_loaders(
 
     return total_scores_chunks
 
-def set_preconditioned_query_states(target_model: nn.Module, source_model: nn.Module) -> None:
+
+def set_storage_to_be_equal(target_model: nn.Module, source_model: nn.Module) -> None:
     """Sets the preconditioned query states of the target model to be the same as the source model.
-    
+
     Args:
         target_model (nn.Module):
             The model to set the preconditioned query states for.
@@ -331,8 +338,8 @@ def set_preconditioned_query_states(target_model: nn.Module, source_model: nn.Mo
     for target_module, source_module in zip(target_model.modules(), source_model.modules()):
         if isinstance(target_module, TrackedModule):
             assert isinstance(source_module, TrackedModule)
-            target_module.storage[PRECONDITIONED_GRADIENT_NAME] = source_module.storage[PRECONDITIONED_GRADIENT_NAME]
-            target_module.storage[ACCUMULATED_PRECONDITIONED_GRADIENT_NAME] = source_module.storage[ACCUMULATED_PRECONDITIONED_GRADIENT_NAME]
+            target_module.storage = source_module.storage
+
 
 def compute_pairwise_query_aggregated_scores_with_loaders(
     loaded_factors: FACTOR_TYPE,
@@ -352,7 +359,9 @@ def compute_pairwise_query_aggregated_scores_with_loaders(
     `compute_pairwise_scores_with_loaders` for detailed information."""
     del per_device_query_batch_size
     if query_model is not None:
-        raise NotImplementedError("Query model is not supported for the case where we are aggregating the query gradients.")
+        raise NotImplementedError(
+            "Query model is not supported for the case where we are aggregating the query gradients."
+        )
     update_factor_args(model=model, factor_args=factor_args)
     update_score_args(model=model, score_args=score_args)
     if tracked_module_names is None:

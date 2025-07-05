@@ -265,6 +265,8 @@ class Kfac(FactorConfig, factor_strategy=FactorStrategy.KFAC):
             damping_factor = HEURISTIC_DAMPING_SCALE * torch.mean(lambda_matrix)
         lambda_matrix.add_(damping_factor)
         lambda_matrix.reciprocal_()
+        if score_args.fast_source and score_args.apply_fast_source_lambda_mapping:
+            apply_fast_source_mapping(lambda_matrix, score_args.fast_source_lr, score_args.fast_source_num_steps)
         storage[LAMBDA_MATRIX_NAME] = lambda_matrix.to(dtype=score_args.precondition_dtype, device="cpu").contiguous()
         storage[NUM_LAMBDA_PROCESSED] = None
         storage[ACTIVATION_EIGENVALUES_NAME] = None
@@ -335,8 +337,12 @@ class Ekfac(FactorConfig, factor_strategy=FactorStrategy.EKFAC):
             damping_factor = HEURISTIC_DAMPING_SCALE * torch.mean(lambda_matrix)
         lambda_matrix.add_(damping_factor)
         lambda_matrix.reciprocal_()
+        if score_args.fast_source and score_args.apply_fast_source_lambda_mapping:
+            apply_fast_source_mapping(lambda_matrix, score_args.fast_source_lr, score_args.fast_source_num_steps)
         storage[LAMBDA_MATRIX_NAME] = lambda_matrix.to(dtype=score_args.precondition_dtype, device="cpu").contiguous()
         storage[NUM_LAMBDA_PROCESSED] = None
+
+
 
     @torch.no_grad()
     def precondition_gradient(
@@ -351,3 +357,19 @@ class Ekfac(FactorConfig, factor_strategy=FactorStrategy.EKFAC):
         gradient.mul_(lambda_matrix)
         gradient = torch.matmul(gradient_eigenvectors, torch.matmul(gradient, activation_eigenvectors.t()))
         return gradient
+
+def apply_fast_source_mapping(lambda_matrix: torch.Tensor, lrs: float, n_iters: int) -> None:
+    """Applies the Fast-SOURCE mapping to the given lambda matrix in-place.
+    Equation 21 in the paper.
+    """
+
+    # Store original values for division
+    original_lambda = lambda_matrix.clone()
+    
+    # Apply operations in-place
+    lambda_matrix.mul_(-lrs * n_iters)
+    torch.expm1(lambda_matrix, out=lambda_matrix)
+    lambda_matrix.neg_()
+    lambda_matrix.div_(original_lambda)
+    lambda_matrix.clamp_(max=n_iters * lrs)
+    torch.nan_to_num(lambda_matrix, nan=n_iters * lrs, out=lambda_matrix)

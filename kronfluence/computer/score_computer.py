@@ -253,7 +253,7 @@ class ScoreComputer(Computer):
                 The per-device batch size used to compute training gradients. If not specified, an executable
                 batch size will be found.
             query_model (nn.Module, optional):
-                Optional argument, where we can compute the query gradients w.r.t a different model. This is useful for fast-source, where we want the training gradients to be compute w.r.t the final model checkpoint, but all other computations should be done w.r.t the averaged model. 
+                Optional argument, where we can compute the query gradients w.r.t a different model. This is useful for fast-source, where we want the training gradients to be compute w.r.t the final model checkpoint, but all other computations should be done w.r.t the averaged model.
             initial_per_device_train_batch_size_attempt (int, optional):
                 The initial attempted per-device batch size when the batch size is not provided.
             query_indices (Sequence[int], optional):

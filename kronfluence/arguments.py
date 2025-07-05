@@ -132,10 +132,7 @@ class FactorArguments(Arguments):
         default=torch.float32,
         metadata={"help": "Data type for Lambda matrix computation."},
     )
-    fast_source: bool = field(
-        default=False,
-        metadata={"help": "If `True`, performs the SOURCE mapping on the eigenfactors."},
-    )
+
 
     def __post_init__(self) -> None:
         if self.covariance_max_examples is not None and self.covariance_max_examples <= 0:
@@ -262,6 +259,22 @@ class ScoreArguments(Arguments):
     score_dtype: torch.dtype = field(
         default=torch.float32,
         metadata={"help": "Data type for influence score computation."},
+    )
+    fast_source: bool = field(
+        default=False,
+        metadata={"help": "If `True`, performs the SOURCE mapping on the eigenfactors."},
+    )
+    apply_fast_source_lambda_mapping: bool = field(
+        default=False,
+        metadata={"help": "If `True`, applies the  mapping described by SOURCE to the lambda matrix. Equation 21 in the paper."},
+    )
+    fast_source_lr: float = field(
+        default=0.01,
+        metadata={"help": "Learning rate, used for the Fast-SOURCE mapping eigenvalues mapping."},
+    )
+    fast_source_num_steps: int = field(
+        default=100,
+        metadata={"help": "Number of iterations, used for the Fast-SOURCE mapping eigenvalues mapping."},
     )
 
     def __post_init__(self) -> None:
