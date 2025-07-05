@@ -137,6 +137,10 @@ project [LogIX](https://github.com/logix-project/logix) may be worth exploring. 
 [HuggingFace Trainer](https://huggingface.co/docs/transformers/en/main_classes/trainer) and [PyTorch Lightning](https://lightning.ai/docs/pytorch/stable/) 
 and is also compatible with many PyTorch features (DDP & FSDP & [DeepSpeed](https://github.com/microsoft/DeepSpeed)). 
 
+## Fast-SOURCE
+
+This fork of kronfluence also implements the fast-source algorithm, described in [Training Data Attribution Via Unrolled Differentiation](https://arxiv.org/abs/2405.12186).  For a writeup of how to use it and how it works, see the PR introducing it [here](https://github.com/max-kaufmann/kronfluence/pull/1).
+
 ## Contributing
 
 Contributions are welcome! To get started, please review our [Code of Conduct](https://github.com/pomonam/kronfluence/blob/main/CODE_OF_CONDUCT.md). For bug fixes, please submit a pull request. 
