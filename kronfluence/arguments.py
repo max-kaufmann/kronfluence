@@ -132,6 +132,10 @@ class FactorArguments(Arguments):
         default=torch.float32,
         metadata={"help": "Data type for Lambda matrix computation."},
     )
+    fast_source: bool = field(
+        default=False,
+        metadata={"help": "If `True`, performs the SOURCE mapping on the eigenfactors."},
+    )
 
     def __post_init__(self) -> None:
         if self.covariance_max_examples is not None and self.covariance_max_examples <= 0:
