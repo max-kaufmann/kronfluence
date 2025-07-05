@@ -150,7 +150,6 @@ class Analyzer(FactorComputer, ScoreComputer):
         dataloader_kwargs: Optional[DataLoaderKwargs] = None,
         factor_args: Optional[FactorArguments] = None,
         overwrite_output_dir: bool = False,
-        fast_source: bool = False,
     ) -> None:
         """Computes all necessary factors for the given strategy.
 

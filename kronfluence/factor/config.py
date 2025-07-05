@@ -342,8 +342,6 @@ class Ekfac(FactorConfig, factor_strategy=FactorStrategy.EKFAC):
         storage[LAMBDA_MATRIX_NAME] = lambda_matrix.to(dtype=score_args.precondition_dtype, device="cpu").contiguous()
         storage[NUM_LAMBDA_PROCESSED] = None
 
-
-
     @torch.no_grad()
     def precondition_gradient(
         self,
@@ -358,6 +356,7 @@ class Ekfac(FactorConfig, factor_strategy=FactorStrategy.EKFAC):
         gradient = torch.matmul(gradient_eigenvectors, torch.matmul(gradient, activation_eigenvectors.t()))
         return gradient
 
+
 def apply_fast_source_mapping(lambda_matrix: torch.Tensor, lrs: float, n_iters: int) -> None:
     """Applies the Fast-SOURCE mapping to the given lambda matrix in-place.
     Equation 21 in the paper.
@@ -365,7 +364,7 @@ def apply_fast_source_mapping(lambda_matrix: torch.Tensor, lrs: float, n_iters: 
 
     # Store original values for division
     original_lambda = lambda_matrix.clone()
-    
+
     # Apply operations in-place
     lambda_matrix.mul_(-lrs * n_iters)
     torch.expm1(lambda_matrix, out=lambda_matrix)

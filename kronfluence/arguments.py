@@ -133,7 +133,6 @@ class FactorArguments(Arguments):
         metadata={"help": "Data type for Lambda matrix computation."},
     )
 
-
     def __post_init__(self) -> None:
         if self.covariance_max_examples is not None and self.covariance_max_examples <= 0:
             raise ValueError("`covariance_max_examples` must be `None` or positive.")
@@ -262,7 +261,9 @@ class ScoreArguments(Arguments):
     )
     apply_fast_source_lambda_mapping: bool = field(
         default=False,
-        metadata={"help": "If `True`, applies the  mapping described by SOURCE to the lambda matrix. Equation 21 in the paper."},
+        metadata={
+            "help": "If `True`, applies the  mapping described by SOURCE to the lambda matrix. Equation 21 in the paper."
+        },
     )
     fast_source_lr: float = field(
         default=0.01,
