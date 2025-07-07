@@ -336,9 +336,10 @@ class Ekfac(FactorConfig, factor_strategy=FactorStrategy.EKFAC):
         if damping_factor is None:
             damping_factor = HEURISTIC_DAMPING_SCALE * torch.mean(lambda_matrix)
         lambda_matrix.add_(damping_factor)
-        lambda_matrix.reciprocal_()
         if score_args.apply_fast_source_lambda_mapping:
             apply_fast_source_mapping(lambda_matrix, score_args.fast_source_lr, score_args.fast_source_num_steps)
+        else:
+            lambda_matrix.reciprocal_()
         storage[LAMBDA_MATRIX_NAME] = lambda_matrix.to(dtype=score_args.precondition_dtype, device="cpu").contiguous()
         storage[NUM_LAMBDA_PROCESSED] = None
 
@@ -365,7 +366,7 @@ def apply_fast_source_mapping(lambda_matrix: torch.Tensor, lrs: float, n_iters: 
     # Store original values for division
     original_lambda = lambda_matrix.clone()
 
-    # Apply operations in-place
+# Apply operations in-place
     lambda_matrix.mul_(-lrs * n_iters)
     torch.expm1(lambda_matrix, out=lambda_matrix)
     lambda_matrix.neg_()

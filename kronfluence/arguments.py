@@ -267,11 +267,11 @@ class ScoreArguments(Arguments):
     )
     fast_source_lr: float = field(
         default=0.01,
-        metadata={"help": "Learning rate, used for the Fast-SOURCE mapping eigenvalues mapping."},
+        metadata={"help": "Learning rate, used for the Fast-SOURCE mapping."},
     )
     fast_source_num_steps: int = field(
         default=100,
-        metadata={"help": "Number of iterations, used for the Fast-SOURCE mapping eigenvalues mapping."},
+        metadata={"help": "Number of iterations, used in the Fast-SOURCE mapping."},
     )
 
     def __post_init__(self) -> None:
