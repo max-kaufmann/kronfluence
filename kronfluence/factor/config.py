@@ -367,7 +367,7 @@ def apply_fast_source_mapping(lambda_matrix: torch.Tensor, lrs: float, n_iters: 
     # Store original values for division
     original_lambda = lambda_matrix.clone()
 
-# Apply operations in-place
+    # Apply operations in-place
     lambda_matrix.mul_(-lrs * n_iters)
     torch.expm1(lambda_matrix, out=lambda_matrix)
     lambda_matrix.neg_()

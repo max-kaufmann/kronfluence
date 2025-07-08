@@ -188,7 +188,7 @@ def compute_pairwise_scores_with_loaders(
         query_model.to(state.device)
         models_for_config_update.append(query_model)
         set_storage_to_be_equal(target_model=query_model, source_model=model)
-    
+
     # Make sure both the query model and the original model are in the same state
     for model_to_update in models_for_config_update:
         update_factor_args(model=model_to_update, factor_args=factor_args)
