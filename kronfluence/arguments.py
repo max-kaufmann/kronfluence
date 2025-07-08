@@ -259,6 +259,20 @@ class ScoreArguments(Arguments):
         default=torch.float32,
         metadata={"help": "Data type for influence score computation."},
     )
+    apply_fast_source_lambda_mapping: bool = field(
+        default=False,
+        metadata={
+            "help": "If `True`, applies the  mapping described by SOURCE to the lambda matrix. Equation 21 in the paper."
+        },
+    )
+    fast_source_lr: float = field(
+        default=0.01,
+        metadata={"help": "Learning rate, used for the Fast-SOURCE mapping."},
+    )
+    fast_source_num_steps: int = field(
+        default=100,
+        metadata={"help": "Number of iterations, used in the Fast-SOURCE mapping."},
+    )
 
     def __post_init__(self) -> None:
         if self.damping_factor is not None and self.damping_factor < 0:

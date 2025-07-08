@@ -6,6 +6,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 import torch
 from torch.utils import data
 
+from torch import nn
 from kronfluence.arguments import FactorArguments, ScoreArguments
 from kronfluence.computer.computer import Computer
 from kronfluence.score.pairwise import (
@@ -150,6 +151,7 @@ class ScoreComputer(Computer):
         score_args: ScoreArguments,
         factor_args: FactorArguments,
         tracked_modules_name: Optional[List[str]],
+        query_model: nn.Module | None = None,
     ) -> int:
         """Automatically finds executable training batch size for computing pairwise influence scores."""
         if self.state.use_distributed:
@@ -202,6 +204,7 @@ class ScoreComputer(Computer):
                 score_args=score_args,
                 factor_args=factor_args,
                 query_loader=query_loader,
+                query_model=query_model,
                 train_loader=train_loader,
                 per_device_query_batch_size=per_device_query_batch_size,
                 tracked_module_names=tracked_modules_name,
@@ -222,6 +225,7 @@ class ScoreComputer(Computer):
         query_dataset: data.Dataset,
         train_dataset: data.Dataset,
         per_device_query_batch_size: int,
+        query_model: nn.Module | None = None,
         per_device_train_batch_size: Optional[int] = None,
         initial_per_device_train_batch_size_attempt: int = 4096,
         query_indices: Optional[Sequence[int]] = None,
@@ -248,6 +252,8 @@ class ScoreComputer(Computer):
             per_device_train_batch_size (int, optional):
                 The per-device batch size used to compute training gradients. If not specified, an executable
                 batch size will be found.
+            query_model (nn.Module, optional):
+                Optional argument, where we can compute the query gradients w.r.t a different model. This is useful for fast-source, where we want the training gradients to be compute w.r.t the final model checkpoint, but all other computations should be done w.r.t the averaged model.
             initial_per_device_train_batch_size_attempt (int, optional):
                 The initial attempted per-device batch size when the batch size is not provided.
             query_indices (Sequence[int], optional):
@@ -399,6 +405,7 @@ class ScoreComputer(Computer):
                         score_args=score_args,
                         factor_args=factor_args,
                         tracked_modules_name=module_partition_names[module_partition],
+                        query_model=query_model,
                     )
 
                 self._reset_memory()
@@ -434,6 +441,7 @@ class ScoreComputer(Computer):
                         score_args=score_args,
                         factor_args=factor_args,
                         tracked_module_names=module_partition_names[module_partition],
+                        query_model=query_model,
                         disable_tqdm=self.disable_tqdm,
                     )
                 end_time = get_time(state=self.state)
