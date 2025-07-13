@@ -5,7 +5,7 @@ from torch import nn
 
 from kronfluence.module.tracker.base import BaseTracker
 from kronfluence.utils.constants import (
-    SQUARED_GRADIENT_NORM_NAME,
+    GRADIENT_NORM_NAME,
 )
 
 
@@ -49,8 +49,8 @@ class GradientNormTracker(BaseTracker):
             if self.module.gradient_scale != 1.0:
                 raise NotImplementedError("Gradient scale is not supported for gradient norm computation.")
 
-            self.module.storage[SQUARED_GRADIENT_NORM_NAME] = per_sample_gradient.square_().sum(
-                dim=tuple(range(1, per_sample_gradient.ndim))
+            self.module.storage[GRADIENT_NORM_NAME] = torch.sqrt(
+                per_sample_gradient.square_().sum(dim=tuple(range(1, per_sample_gradient.ndim)))
             )
 
         self.registered_hooks.append(self.module.register_forward_hook(forward_hook))
@@ -61,7 +61,7 @@ class GradientNormTracker(BaseTracker):
 
     def exist(self) -> bool:
         """Checks if pairwise score is available."""
-        return self.module.storage[SQUARED_GRADIENT_NORM_NAME] is not None
+        return self.module.storage[GRADIENT_NORM_NAME] is not None
 
     def accumulate_iterations(self) -> None:
         """Removes pairwise scores from memory after a single iteration."""
@@ -70,4 +70,4 @@ class GradientNormTracker(BaseTracker):
     def release_memory(self) -> None:
         """Releases pairwise scores from memory."""
         self.clear_all_cache()
-        self.module.storage[SQUARED_GRADIENT_NORM_NAME] = None
+        self.module.storage[GRADIENT_NORM_NAME] = None

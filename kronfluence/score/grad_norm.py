@@ -7,7 +7,6 @@ from torch import autocast, nn
 from torch.cuda.amp import GradScaler
 from torch.utils import data
 from tqdm import tqdm
-from kronfluence.module import update_score_args
 from kronfluence.arguments import FactorArguments, ScoreArguments
 from kronfluence.module import TrackedModule
 from kronfluence.module.tracked_module import ModuleMode
@@ -26,7 +25,7 @@ from kronfluence.utils.constants import (
     DISTRIBUTED_SYNC_INTERVAL,
     PAIRWISE_SCORE_MATRIX_NAME,
     SCORE_TYPE,
-    SQUARED_GRADIENT_NORM_NAME,
+    GRADIENT_NORM_NAME,
 )
 from kronfluence.utils.logger import TQDM_BAR_FORMAT
 from kronfluence.utils.state import State, no_sync, release_memory
@@ -40,7 +39,7 @@ def compute_gradient_norms_with_loaders(
     train_loader: data.DataLoader,
     tracked_module_names: List[str],
     disable_tqdm: bool = False,
-) -> Union[Dict[str, torch.Tensor], torch.Tensor]:
+) -> SCORE_TYPE:
     """After computing the preconditioned query gradient, compute dot products with individual training gradients."""
     if score_args.has_shared_parameters:
         raise NotImplementedError("Shared parameters are not supported for gradient norm computation.")
@@ -52,7 +51,6 @@ def compute_gradient_norms_with_loaders(
         tracked_module_names=tracked_module_names,
         release_memory=False,
     )
-    update_score_args(model=model, score_args=score_args)
     release_memory()
 
     cached_module_lst: list[TrackedModule] = []
@@ -86,23 +84,22 @@ def compute_gradient_norms_with_loaders(
                     model=model,
                     sample=False,
                 )
+                loss.backward()
 
                 if score_args.compute_per_module_scores:
                     for module in cached_module_lst:
                         module_to_gradient_norm[module.name].append(
-                            torch.sqrt(module.get_factor(factor_name=SQUARED_GRADIENT_NORM_NAME)).to(
-                                device="cpu", copy=True
-                            )
+                            module.get_factor(factor_name=GRADIENT_NORM_NAME).to(device="cpu", copy=True)
                         )
                 else:
                     squared_gradient_norms = None
                     for module in cached_module_lst:
                         if squared_gradient_norms is None:
                             squared_gradient_norms = torch.zeros_like(
-                                module.get_factor(factor_name=SQUARED_GRADIENT_NORM_NAME), requires_grad=False
+                                module.get_factor(factor_name=GRADIENT_NORM_NAME), requires_grad=False
                             )
                         try:
-                            squared_gradient_norms.add_(module.get_factor(factor_name=SQUARED_GRADIENT_NORM_NAME))
+                            squared_gradient_norms.add_(torch.square(module.get_factor(factor_name=GRADIENT_NORM_NAME)))
                         except RuntimeError as exc:
                             raise RuntimeError(DIMENSION_NOT_MATCH_ERROR_MSG) from exc
                     assert squared_gradient_norms is not None
@@ -137,7 +134,7 @@ def compute_gradient_norms_with_loaders(
                 gather_list = [torch.zeros_like(total_gradient_norms[module_name]) for _ in range(state.num_processes)]
             dist.gather(total_gradient_norms[module_name], gather_list)
             if state.is_main_process:
-                total_gradient_norms[module_name] = torch.cat(gather_list, dim=1)[:, :dataset_size].cpu()
+                total_gradient_norms[module_name] = torch.cat(gather_list, dim=0)[:dataset_size].cpu()
             else:
                 total_gradient_norms[module_name] = total_gradient_norms[module_name].cpu()
     state.wait_for_everyone()

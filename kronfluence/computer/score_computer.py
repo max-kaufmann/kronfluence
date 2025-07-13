@@ -484,7 +484,7 @@ class ScoreComputer(Computer):
         train_indices: Optional[Sequence[int]] = None,
         dataloader_kwargs: Optional[DataLoaderKwargs] = None,
         overwrite_output_dir: bool = False,
-    ) -> Optional[SCORE_TYPE]:
+    ) -> SCORE_TYPE:
         """Computes gradient norms with the given score configuration.
 
         Args:
@@ -506,11 +506,12 @@ class ScoreComputer(Computer):
 
         scores_name: str = hash_args(score_args)
         update_score_args(model=self.model, score_args=score_args)
+        file_name = f"scores_{scores_name}_gradient_norm"
 
-        scores_output_dir = self.scores_output_dir(scores_name=scores_name + "_gradient_norm")
+        scores_output_dir = self.scores_output_dir(scores_name=file_name)
         os.makedirs(scores_output_dir, exist_ok=True)
         if pairwise_scores_exist(output_dir=scores_output_dir) and not overwrite_output_dir:
-            self.logger.info(f"Found existing pairwise scores at `{scores_output_dir}`. Skipping.")
+            self.logger.info(f"Found existing gradient norm scores at `{scores_output_dir}`. Skipping.")
             return self.load_pairwise_scores(scores_name=scores_name)
 
         dataloader_params = self._configure_dataloader(dataloader_kwargs)
@@ -559,7 +560,6 @@ class ScoreComputer(Computer):
                     scores=grad_norms,
                 )
             self.state.wait_for_everyone()
-        del grad_norms, train_loader
         self._reset_memory()
         self.logger.info(f"Saved pairwise scores at {scores_output_dir}.")
 
@@ -567,6 +567,8 @@ class ScoreComputer(Computer):
         elapsed_time = all_end_time - all_start_time
         self.logger.info(f"Fitted all gradient norms in {elapsed_time:.2f} seconds.")
         self._log_profile_summary(name=f"scores_{scores_name}_gradient_norm")
+
+        return grad_norms
 
     @torch.no_grad()
     def aggregate_pairwise_scores(self, scores_name: str) -> None:
