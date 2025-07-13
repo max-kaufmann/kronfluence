@@ -2,11 +2,9 @@ import os
 import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
-
 import torch
 import hashlib
 from torch.utils import data
-from kronfluence.module.tracked_module import finalize_iteration, set_mode
 from kronfluence.module.utils import update_score_args
 from torch import nn
 from kronfluence.arguments import FactorArguments, ScoreArguments
@@ -18,7 +16,6 @@ from kronfluence.score.pairwise import (
     pairwise_scores_exist,
     save_pairwise_scores,
 )
-from kronfluence.utils.save import hash_args
 from kronfluence.score.grad_norm import compute_gradient_norms_with_loaders
 from kronfluence.score.self import (
     compute_self_measurement_scores_with_loaders,

@@ -41,8 +41,6 @@ def compute_gradient_norms_with_loaders(
     disable_tqdm: bool = False,
 ) -> SCORE_TYPE:
     """After computing the preconditioned query gradient, compute dot products with individual training gradients."""
-    if score_args.has_shared_parameters:
-        raise NotImplementedError("Shared parameters are not supported for gradient norm computation.")
 
     model.zero_grad(set_to_none=True)
     set_mode(

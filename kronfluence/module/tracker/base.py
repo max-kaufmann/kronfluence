@@ -3,8 +3,10 @@ from typing import List, Optional, Union
 import torch
 from torch import nn
 from torch.utils.hooks import RemovableHandle
+from typing import TYPE_CHECKING
 
-from kronfluence.module.tracked_module import TrackedModule
+if TYPE_CHECKING:
+    from kronfluence.module.tracked_module import TrackedModule
 
 
 class BaseTracker:

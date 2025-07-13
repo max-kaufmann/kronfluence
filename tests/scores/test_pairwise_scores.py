@@ -228,7 +228,7 @@ def test_pairwise_scores_batch_size_equivalence(
         scores_name=custom_scores_name("bs8"),
         factors_name=DEFAULT_FACTORS_NAME,
         query_dataset=test_dataset,
-        per_device_query_batch_size=3,
+    per_device_query_batch_size=3,
         train_dataset=train_dataset,
         per_device_train_batch_size=8,
         dataloader_kwargs=kwargs,
