@@ -102,7 +102,3 @@ def verify_models_equivalence(state_dict1: Dict[str, torch.Tensor], state_dict2:
             return False
 
     return True
-
-
-def hash_args(args: FactorArguments | ScoreArguments) -> str:
-    return hashlib.sha256(str(sorted([str(k) + str(v) for k, v in asdict(args).items()])).encode()).hexdigest()[:10]

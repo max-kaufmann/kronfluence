@@ -478,6 +478,7 @@ class ScoreComputer(Computer):
 
     def compute_gradient_norm(
         self,
+        query_name: str,
         train_dataset: data.Dataset,
         score_args: ScoreArguments,
         per_device_train_batch_size: int,
@@ -504,15 +505,13 @@ class ScoreComputer(Computer):
         """
         self.logger.debug(f"Computing gradient norms with parameters: {locals()}")
 
-        scores_name: str = hash_args(score_args)
         update_score_args(model=self.model, score_args=score_args)
-        file_name = f"scores_{scores_name}_gradient_norm"
 
-        scores_output_dir = self.scores_output_dir(scores_name=file_name)
+        scores_output_dir = self.scores_output_dir(scores_name=query_name)
         os.makedirs(scores_output_dir, exist_ok=True)
         if pairwise_scores_exist(output_dir=scores_output_dir) and not overwrite_output_dir:
             self.logger.info(f"Found existing gradient norm scores at `{scores_output_dir}`. Skipping.")
-            return self.load_pairwise_scores(scores_name=file_name)
+            return self.load_pairwise_scores(scores_name=query_name)
 
         dataloader_params = self._configure_dataloader(dataloader_kwargs)
         if self.state.is_main_process:
@@ -566,7 +565,7 @@ class ScoreComputer(Computer):
         all_end_time = get_time(state=self.state)
         elapsed_time = all_end_time - all_start_time
         self.logger.info(f"Fitted all gradient norms in {elapsed_time:.2f} seconds.")
-        self._log_profile_summary(name=f"scores_{scores_name}_gradient_norm")
+        self._log_profile_summary(name=f"scores_{query_name}_gradient_norm")
 
         return grad_norms
 
