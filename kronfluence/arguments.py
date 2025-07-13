@@ -236,11 +236,6 @@ class ScoreArguments(Arguments):
         },
     )
 
-    normalize_training_gradients: bool = field(
-        default=False,
-        metadata={"help": "If `True`, normalizes the training gradients by the norm of the query gradient."},
-    )
-
     # Self-influence score configuration #
     use_measurement_for_self_influence: bool = field(
         default=False,

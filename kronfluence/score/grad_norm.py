@@ -105,7 +105,7 @@ def compute_gradient_norms_with_loaders(
                     assert squared_gradient_norms is not None
                     gradient_norm = torch.sqrt(squared_gradient_norms).cpu()
                     module_to_gradient_norm[ALL_MODULE_NAME].append(gradient_norm)
-                    accumulate_iterations(model=model, tracked_module_names=tracked_module_names)
+                accumulate_iterations(model=model, tracked_module_names=tracked_module_names)
 
             if state.use_distributed and total_steps % DISTRIBUTED_SYNC_INTERVAL == 0:
                 state.wait_for_everyone()
