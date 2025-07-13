@@ -512,7 +512,7 @@ class ScoreComputer(Computer):
         os.makedirs(scores_output_dir, exist_ok=True)
         if pairwise_scores_exist(output_dir=scores_output_dir) and not overwrite_output_dir:
             self.logger.info(f"Found existing gradient norm scores at `{scores_output_dir}`. Skipping.")
-            return self.load_pairwise_scores(scores_name=scores_name)
+            return self.load_pairwise_scores(scores_name=file_name)
 
         dataloader_params = self._configure_dataloader(dataloader_kwargs)
         if self.state.is_main_process:
