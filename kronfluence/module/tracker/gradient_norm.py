@@ -1,4 +1,5 @@
 from typing import TYPE_CHECKING, Tuple
+from typing import cast
 
 import torch
 from torch import nn
@@ -7,9 +8,13 @@ from kronfluence.module.tracker.base import BaseTracker
 from kronfluence.utils.constants import (
     GRADIENT_NORM_NAME,
 )
+if TYPE_CHECKING:
+    from kronfluence.module.linear import TrackedLinear
+
 
 class GradientNormTracker(BaseTracker):
     """Computes pairwise influence scores for a given module."""
+
 
     def __init__(self, module: nn.Module) -> None:
         super().__init__(module)
@@ -45,7 +50,8 @@ class GradientNormTracker(BaseTracker):
             output_gradient = output_gradient.detach().to(dtype=self.module.score_args.per_sample_gradient_dtype)
             cached_activation = self.cached_activations
             # Computes pairwise influence scores during backward pass.
-            per_sample_gradient = self.module.compute_per_sample_gradient(
+            self.module = cast(TrackedLinear, self.module)
+            per_sample_gradient_squared = self.module.compute_per_sample_gradient_norm_squared(
                 input_activation=cached_activation.to(device=output_gradient.device),
                 output_gradient=output_gradient,
                 per_token=self.module.score_args.compute_per_token_scores,
@@ -54,12 +60,7 @@ class GradientNormTracker(BaseTracker):
             if self.module.gradient_scale != 1.0:
                 raise NotImplementedError("Gradient scale is not supported for gradient norm computation.")
         
-            if self.module.score_args.compute_per_token_scores:
-                per_sample_gradient_summed_squared = torch.einsum("btio,btio->bt", per_sample_gradient, per_sample_gradient)
-            else:
-                per_sample_gradient_summed_squared = torch.einsum("bio,bio->b", per_sample_gradient, per_sample_gradient)
-
-            self.module.storage[GRADIENT_NORM_NAME] = torch.sqrt(per_sample_gradient_summed_squared)
+            self.module.storage[GRADIENT_NORM_NAME] = torch.sqrt(per_sample_gradient_squared)
 
         self.registered_hooks.append(self.module.register_forward_hook(forward_hook))
 

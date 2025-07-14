@@ -4,12 +4,18 @@ import torch
 from einops import rearrange
 from opt_einsum import DynamicProgramming, contract_path
 from torch import _VF, nn
-
+from typing import Literal
 from kronfluence.module.tracked_module import TrackedModule
 
 
 class TrackedLinear(TrackedModule, module_type=nn.Linear):
     """A wrapper for `nn.Linear` modules."""
+
+    cached_paths_gradient_norm : dict[Literal["per_sample", "per_token"], list[int]] 
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.cached_paths_gradient_norm = {}
 
     @property
     def in_features(self) -> int:  # pylint: disable=missing-function-docstring
@@ -66,19 +72,33 @@ class TrackedLinear(TrackedModule, module_type=nn.Linear):
         return summed_gradient
 
     def compute_per_sample_gradient(
-        self, input_activation: torch.Tensor, output_gradient: torch.Tensor, per_token: bool = False
+        self, input_activation: torch.Tensor, output_gradient: torch.Tensor
     ) -> torch.Tensor:
         input_activation = self._flatten_input_activation(input_activation=input_activation)
-        if not per_token:
-            per_sample_gradient = torch.einsum("b...i,b...o->bio", output_gradient, input_activation)
-        else:
-            per_sample_gradient = torch.einsum("b...ti,b...to->btio", output_gradient, input_activation)
+        per_sample_gradient = torch.einsum("b...i,b...o->bio", output_gradient, input_activation)
 
         if self.per_sample_gradient_process_fnc is not None:
             per_sample_gradient = self.per_sample_gradient_process_fnc(
                 module_name=self.name, gradient=per_sample_gradient
             )
         return per_sample_gradient
+    
+    def compute_per_sample_gradient_norm_squared(self, input_activation: torch.Tensor, output_gradient: torch.Tensor, per_token: bool = False) -> torch.Tensor:
+        input_activation = self._flatten_input_activation(input_activation=input_activation)
+
+        expr = "bti,bto,bti,bto->bt" if per_token else "b...i,b...o,b...i,b...o->b"
+        cached_path_name = "per_token" if per_token else "per_sample"
+
+        if cached_path_name not in self.cached_paths_gradient_norm:
+            path = contract_path(
+                expr, output_gradient, input_activation, output_gradient, input_activation
+            )[0]
+            self.cached_paths_gradient_norm[cached_path_name] = [item for pair in path for item in pair]
+        
+        path = self.cached_paths_gradient_norm[cached_path_name]
+
+        per_sample_gradient_squared = _VF.einsum(expr, (output_gradient, input_activation, output_gradient, input_activation), path=path)
+        return per_sample_gradient_squared
 
     def compute_pairwise_score(
         self, preconditioned_gradient: torch.Tensor, input_activation: torch.Tensor, output_gradient: torch.Tensor
