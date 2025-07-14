@@ -1,20 +1,19 @@
-from typing import Tuple
+from typing import TYPE_CHECKING, Tuple
 
 import torch
 from torch import nn
 
 from kronfluence.module.tracker.base import BaseTracker
-from kronfluence.module.linear import TrackedLinear
 from kronfluence.utils.constants import (
     GRADIENT_NORM_NAME,
 )
-
 
 class GradientNormTracker(BaseTracker):
     """Computes pairwise influence scores for a given module."""
 
     def __init__(self, module: nn.Module) -> None:
         super().__init__(module)
+        from kronfluence.module.linear import TrackedLinear
         assert isinstance(module, TrackedLinear), "GradientNormTracker can only be used with TrackedLinear right now."
 
     def register_hooks(self) -> None:
