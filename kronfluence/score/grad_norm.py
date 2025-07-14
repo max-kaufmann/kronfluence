@@ -45,7 +45,7 @@ def compute_gradient_norms_with_loaders(
     model.zero_grad(set_to_none=True)
     set_mode(
         model=model,
-        mode=ModuleMode.GRADIENT_NORM,
+    mode=ModuleMode.GRADIENT_NORM,
         tracked_module_names=tracked_module_names,
         release_memory=False,
     )

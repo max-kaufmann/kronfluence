@@ -66,10 +66,14 @@ class TrackedLinear(TrackedModule, module_type=nn.Linear):
         return summed_gradient
 
     def compute_per_sample_gradient(
-        self, input_activation: torch.Tensor, output_gradient: torch.Tensor
+        self, input_activation: torch.Tensor, output_gradient: torch.Tensor, per_token: bool = False
     ) -> torch.Tensor:
         input_activation = self._flatten_input_activation(input_activation=input_activation)
-        per_sample_gradient = torch.einsum("b...i,b...o->bio", output_gradient, input_activation)
+        if not per_token:
+            per_sample_gradient = torch.einsum("b...i,b...o->bio", output_gradient, input_activation)
+        else:
+            per_sample_gradient = torch.einsum("b..ti,b..to->btio", output_gradient, input_activation)
+
         if self.per_sample_gradient_process_fnc is not None:
             per_sample_gradient = self.per_sample_gradient_process_fnc(
                 module_name=self.name, gradient=per_sample_gradient

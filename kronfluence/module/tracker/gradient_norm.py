@@ -4,6 +4,7 @@ import torch
 from torch import nn
 
 from kronfluence.module.tracker.base import BaseTracker
+from kronfluence.module.linear import TrackedLinear
 from kronfluence.utils.constants import (
     GRADIENT_NORM_NAME,
 )
@@ -11,6 +12,10 @@ from kronfluence.utils.constants import (
 
 class GradientNormTracker(BaseTracker):
     """Computes pairwise influence scores for a given module."""
+
+    def __init__(self, module: nn.Module) -> None:
+        super().__init__(module)
+        assert isinstance(module, TrackedLinear), "GradientNormTracker can only be used with TrackedLinear right now."
 
     def register_hooks(self) -> None:
         """Sets up hooks to compute pairwise influence scores."""
@@ -44,14 +49,18 @@ class GradientNormTracker(BaseTracker):
             per_sample_gradient = self.module.compute_per_sample_gradient(
                 input_activation=cached_activation.to(device=output_gradient.device),
                 output_gradient=output_gradient,
+                per_token=self.module.score_args.compute_per_token_scores,
             )
             del cached_activation, output_gradient
             if self.module.gradient_scale != 1.0:
                 raise NotImplementedError("Gradient scale is not supported for gradient norm computation.")
+        
+            if self.module.score_args.compute_per_token_scores:
+                per_sample_gradient_summed_squared = torch.einsum("btio,btio->bt", per_sample_gradient, per_sample_gradient)
+            else:
+                per_sample_gradient_summed_squared = torch.einsum("bio,bio->b", per_sample_gradient, per_sample_gradient)
 
-            self.module.storage[GRADIENT_NORM_NAME] = torch.sqrt(
-                per_sample_gradient.square_().sum(dim=tuple(range(1, per_sample_gradient.ndim)))
-            )
+            self.module.storage[GRADIENT_NORM_NAME] = torch.sqrt(per_sample_gradient_summed_squared)
 
         self.registered_hooks.append(self.module.register_forward_hook(forward_hook))
 
