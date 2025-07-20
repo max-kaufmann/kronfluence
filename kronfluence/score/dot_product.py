@@ -48,6 +48,7 @@ def compute_dot_products_with_loader(
     disable_tqdm: bool = False,
 ) -> Union[Dict[str, torch.Tensor], torch.Tensor]:
     """After computing the preconditioned query gradient, compute dot products with individual training gradients."""
+
     model.zero_grad(set_to_none=True)
     set_mode(
         model=model,

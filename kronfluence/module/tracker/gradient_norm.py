@@ -8,9 +8,6 @@ from kronfluence.module.tracker.base import BaseTracker
 from kronfluence.utils.constants import (
     GRADIENT_NORM_NAME,
 )
-if TYPE_CHECKING:
-    from kronfluence.module.linear import TrackedLinear
-
 
 class GradientNormTracker(BaseTracker):
     """Computes pairwise influence scores for a given module."""
@@ -50,6 +47,7 @@ class GradientNormTracker(BaseTracker):
             output_gradient = output_gradient.detach().to(dtype=self.module.score_args.per_sample_gradient_dtype)
             cached_activation = self.cached_activations
             # Computes pairwise influence scores during backward pass.
+            from kronfluence.module.linear import TrackedLinear
             self.module = cast(TrackedLinear, self.module)
             per_sample_gradient_squared = self.module.compute_per_sample_gradient_norm_squared(
                 input_activation=cached_activation.to(device=output_gradient.device),
