@@ -11,7 +11,7 @@ from kronfluence.module.tracked_module import TrackedModule
 class TrackedLinear(TrackedModule, module_type=nn.Linear):
     """A wrapper for `nn.Linear` modules."""
 
-    cached_paths_gradient_norm : dict[Literal["per_sample", "per_token"], list[int]] 
+    cached_paths_gradient_norm: dict[Literal["per_sample", "per_token"], list[int]]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -82,23 +82,37 @@ class TrackedLinear(TrackedModule, module_type=nn.Linear):
                 module_name=self.name, gradient=per_sample_gradient
             )
         return per_sample_gradient
-    
-    def compute_per_sample_gradient_norm_squared(self, input_activation: torch.Tensor, output_gradient: torch.Tensor, per_token: bool = False) -> torch.Tensor:
+
+    def compute_per_sample_gradient_norm_squared(
+        self, input_activation: torch.Tensor, output_gradient: torch.Tensor, per_token: bool = False
+    ) -> torch.Tensor:
         input_activation = self._flatten_input_activation(input_activation=input_activation)
 
-        expr = "bti,bto,bti,bto->bt" if per_token else "b...i,b...o,b...i,b...o->b"
-        cached_path_name = "per_token" if per_token else "per_sample"
+        if per_token:
+            # per-token version, where we compute the gradient norm at the weight-sharing on each token.
+            expr = "bti,bto,bti,bto->bt"
+            cache_key = "per_token"
+            operands = (output_gradient, input_activation, output_gradient, input_activation)
 
-        if cached_path_name not in self.cached_paths_gradient_norm:
-            path = contract_path(
-                expr, output_gradient, input_activation, output_gradient, input_activation
-            )[0]
-            self.cached_paths_gradient_norm[cached_path_name] = [item for pair in path for item in pair]
-        
-        path = self.cached_paths_gradient_norm[cached_path_name]
+            if cache_key not in self.cached_paths_gradient_norm:
+                path = contract_path(expr, *operands)[0]
+                self.cached_paths_gradient_norm[cache_key] = [item for pair in path for item in pair]
 
-        per_sample_gradient_squared = _VF.einsum(expr, (output_gradient, input_activation, output_gradient, input_activation), path=path)
-        return per_sample_gradient_squared
+            path = self.cached_paths_gradient_norm[cache_key]
+            return _VF.einsum(expr, operands, path=path)
+        else:
+            # per-sample version, where we take the normal gradient and then sum over the tokens.
+            expr = "bti,bto->bio"
+            cache_key = "per_sample"
+            operands = (input_activation, output_gradient)
+
+            if cache_key not in self.cached_paths_gradient_norm:
+                path = contract_path(expr, *operands)[0]
+                self.cached_paths_gradient_norm[cache_key] = [item for pair in path for item in pair]
+
+            path = self.cached_paths_gradient_norm[cache_key]
+            gradient = _VF.einsum(expr, operands, path=path)  # shape: (b, i, o)
+            return gradient.square().sum(dim=(-1, -2))
 
     def compute_pairwise_score(
         self, preconditioned_gradient: torch.Tensor, input_activation: torch.Tensor, output_gradient: torch.Tensor
