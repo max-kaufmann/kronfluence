@@ -16,7 +16,7 @@ from kronfluence.score.pairwise import (
     pairwise_scores_exist,
     save_pairwise_scores,
 )
-from kronfluence.score.grad_norm import compute_gradient_norms_with_loaders
+from kronfluence.score.grad_norm import compute_gradient_norms_with_loaders, pytorch_compute_gradient_norms_with_loaders
 from kronfluence.score.self import (
     compute_self_measurement_scores_with_loaders,
     compute_self_scores_with_loaders,
@@ -482,6 +482,7 @@ class ScoreComputer(Computer):
         train_indices: Optional[Sequence[int]] = None,
         dataloader_kwargs: Optional[DataLoaderKwargs] = None,
         overwrite_output_dir: bool = False,
+        use_pytorch: bool = False,
     ) -> SCORE_TYPE:
         """Computes gradient norms with the given score configuration.
 
@@ -528,23 +529,36 @@ class ScoreComputer(Computer):
         self._reset_memory()
         start_time = get_time(state=self.state)
         with self.profiler.profile("Compute Pairwise Score"):
+            # Use batch_size=1 for PyTorch implementation since it processes samples individually
+            actual_batch_size = 1 if use_pytorch else per_device_train_batch_size
             train_loader = self._get_dataloader(
                 dataset=train_dataset,
-                per_device_batch_size=per_device_train_batch_size,
+                per_device_batch_size=actual_batch_size,
                 indices=None,
                 dataloader_params=dataloader_params,
                 allow_duplicates=False,
                 stack=False,
             )
-            grad_norms = compute_gradient_norms_with_loaders(
-                model=self.model,
-                state=self.state,
-                task=self.task,
-                train_loader=train_loader,
-                tracked_module_names=get_tracked_module_names(self.model),
-                disable_tqdm=self.disable_tqdm,
-                score_args=score_args,
-            )
+            if use_pytorch:
+                grad_norms = pytorch_compute_gradient_norms_with_loaders(
+                    model=self.model,
+                    state=self.state,
+                    task=self.task,
+                    train_loader=train_loader,
+                    tracked_module_names=get_tracked_module_names(self.model),
+                    disable_tqdm=self.disable_tqdm,
+                    score_args=score_args,
+                )
+            else:
+                grad_norms = compute_gradient_norms_with_loaders(
+                    model=self.model,
+                    state=self.state,
+                    task=self.task,
+                    train_loader=train_loader,
+                    tracked_module_names=get_tracked_module_names(self.model),
+                    disable_tqdm=self.disable_tqdm,
+                    score_args=score_args,
+                )
         end_time = get_time(state=self.state)
         elapsed_time = end_time - start_time
         self.logger.info(f"Computed pairwise influence scores in {elapsed_time:.2f} seconds.")

@@ -10,6 +10,7 @@ from tqdm import tqdm
 from kronfluence.arguments import FactorArguments, ScoreArguments
 from kronfluence.module import TrackedModule
 from kronfluence.module.tracked_module import ModuleMode
+from kronfluence.module.linear import TrackedLinear
 from kronfluence.module.utils import (
     accumulate_iterations,
     exist_for_all_modules,
@@ -138,3 +139,104 @@ def compute_gradient_norms_with_loaders(
     state.wait_for_everyone()
 
     return total_gradient_norms
+
+
+def pytorch_compute_gradient_norms_with_loaders(
+    model: nn.Module,
+    task: Task,
+    state: State,
+    score_args: ScoreArguments,
+    train_loader: data.DataLoader,
+    tracked_module_names: List[str],
+    disable_tqdm: bool = False,
+) -> SCORE_TYPE:
+    """PyTorch-based gradient norm computation that matches the original function's behavior."""
+    
+    model.zero_grad(set_to_none=True)
+    
+    # Enable gradients for PyTorch implementation
+    for param in model.parameters():
+        param.requires_grad = True
+    for buffer in model.buffers():
+        if buffer.dtype.is_floating_point or buffer.dtype.is_complex:
+            buffer.requires_grad = True
+    
+    dataset_size = len(train_loader.dataset)
+    module_to_gradient_norm: Dict[str, list[torch.Tensor]] = {}
+    
+    if score_args.compute_per_module_scores:
+        for module_name in tracked_module_names:
+            module_to_gradient_norm[module_name] = []
+    else:
+        module_to_gradient_norm[ALL_MODULE_NAME] = []
+    
+    # Get the modules we need to track
+    tracked_modules = {}
+    for name, module in model.named_modules():
+        if name in tracked_module_names:
+            tracked_modules[name] = module
+    
+    with tqdm(
+        total=len(train_loader),
+        desc="Computing gradient norms (PyTorch)",
+        bar_format=TQDM_BAR_FORMAT,
+        disable=not state.is_main_process or disable_tqdm,
+    ) as pbar:
+        for batch in train_loader:
+            batch = send_to_device(tensor=batch, device=state.device)
+            model.zero_grad(set_to_none=True)
+            
+            loss = task.compute_train_loss(
+                batch=batch,
+                model=model,
+                sample=False,
+            )
+            loss.backward()
+            
+            if score_args.compute_per_module_scores:
+                # Compute per-module gradient norms
+                for module in model.modules():
+                    if hasattr(module, 'name') and module.name in tracked_module_names:
+                        if isinstance(module, TrackedLinear):
+                            weight = module.weight
+                            bias = module.bias
+                            norm = torch.sqrt(weight.grad.square().sum() + bias.grad.square().sum()).detach().cpu()
+                            module_to_gradient_norm[module.name].append(norm)
+                        else:
+                            raise NotImplementedError(f"PyTorch gradient norm computation only supports TrackedLinear modules, but found {type(module)} for module '{module.name}'")
+            else:
+                # Compute aggregated gradient norm across all modules
+                total_squared_norm = 0.0
+                
+                for module in model.modules():
+                    if hasattr(module, 'name') and module.name in tracked_module_names:
+                        if isinstance(module, TrackedLinear):
+                            weight = module.weight
+                            bias = module.bias
+                            module_squared_norm = weight.grad.square().sum() + bias.grad.square().sum()
+                            total_squared_norm += module_squared_norm
+                        else:
+                            raise NotImplementedError(f"PyTorch gradient norm computation only supports TrackedLinear modules, but found {type(module)} for module '{module.name}'")
+                
+                gradient_norm = torch.sqrt(total_squared_norm).detach().cpu()
+                module_to_gradient_norm[ALL_MODULE_NAME].append(gradient_norm)
+            
+            del loss
+            pbar.update(1)
+    
+    model.zero_grad(set_to_none=True)
+    
+    # Reset gradients to False after computation
+    for param in model.parameters():
+        param.requires_grad = False
+    for buffer in model.buffers():
+        if buffer.dtype.is_floating_point or buffer.dtype.is_complex:
+            buffer.requires_grad = False
+    
+    # Convert lists to tensors
+    total_gradient_norms: SCORE_TYPE = {}
+    for module_name, norms in module_to_gradient_norm.items():
+        total_gradient_norms[module_name] = torch.stack(norms)
+    
+    return total_gradient_norms
+
