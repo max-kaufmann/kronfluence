@@ -213,7 +213,9 @@ def pytorch_compute_gradient_norms_with_loaders(
                         if isinstance(module, TrackedLinear):
                             weight = module.weight
                             bias = module.bias
-                            module_squared_norm = weight.grad.square().sum() + bias.grad.square().sum()
+                            module_squared_norm = weight.grad.square().sum()
+                            if bias is not None:
+                                module_squared_norm += bias.grad.square().sum()
                             total_squared_norm += module_squared_norm
                         else:
                             raise NotImplementedError(f"PyTorch gradient norm computation only supports TrackedLinear modules, but found {type(module)} for module '{module.name}'")
