@@ -2,10 +2,10 @@ import os
 import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
-
 import torch
+import hashlib
 from torch.utils import data
-
+from kronfluence.module.utils import update_score_args
 from torch import nn
 from kronfluence.arguments import FactorArguments, ScoreArguments
 from kronfluence.computer.computer import Computer
@@ -16,6 +16,7 @@ from kronfluence.score.pairwise import (
     pairwise_scores_exist,
     save_pairwise_scores,
 )
+from kronfluence.score.grad_norm import compute_gradient_norms_with_loaders, pytorch_compute_gradient_norms_with_loaders
 from kronfluence.score.self import (
     compute_self_measurement_scores_with_loaders,
     compute_self_scores_with_loaders,
@@ -32,6 +33,7 @@ from kronfluence.utils.constants import (
 from kronfluence.utils.dataset import DataLoaderKwargs, find_executable_batch_size
 from kronfluence.utils.exceptions import FactorsNotFoundError
 from kronfluence.utils.logger import get_time
+from kronfluence.module.utils import get_tracked_module_names
 
 
 class ScoreComputer(Computer):
@@ -470,6 +472,113 @@ class ScoreComputer(Computer):
                 self.logger.info(f"Saved aggregated pairwise scores at `{scores_output_dir}`.")
             self.state.wait_for_everyone()
         self._log_profile_summary(name=f"scores_{scores_name}_pairwise")
+
+    def compute_gradient_norm(
+        self,
+        query_name: str,
+        train_dataset: data.Dataset,
+        score_args: ScoreArguments,
+        per_device_train_batch_size: int,
+        train_indices: Optional[Sequence[int]] = None,
+        dataloader_kwargs: Optional[DataLoaderKwargs] = None,
+        overwrite_output_dir: bool = False,
+        use_pytorch: bool = False,
+    ) -> SCORE_TYPE:
+        """Computes gradient norms with the given score configuration.
+
+        Args:
+            scores_name (str):
+                The unique identifier for the score, used to organize and retrieve the results.
+            train_dataset (data.Dataset):
+                The training dataset.
+            per_device_train_batch_size (int):
+                The per-device batch size used to compute training gradients.
+            train_indices (Sequence[int], optional):
+                The specific indices of the training dataset to compute the gradient norms for. If not
+                specified, all training data points will be used.
+            dataloader_kwargs (DataLoaderKwargs, optional):
+                Controls additional arguments for PyTorch's DataLoader.
+            overwrite_output_dir (bool, optional):
+                Whether to overwrite existing output.
+        """
+        self.logger.debug(f"Computing gradient norms with parameters: {locals()}")
+
+        update_score_args(model=self.model, score_args=score_args)
+
+        scores_output_dir = self.scores_output_dir(scores_name=query_name)
+        os.makedirs(scores_output_dir, exist_ok=True)
+        if pairwise_scores_exist(output_dir=scores_output_dir) and not overwrite_output_dir:
+            self.logger.info(f"Found existing gradient norm scores at `{scores_output_dir}`. Skipping.")
+            return self.load_pairwise_scores(scores_name=query_name)
+
+        dataloader_params = self._configure_dataloader(dataloader_kwargs)
+        if self.state.is_main_process:
+            self._save_dataset_metadata(
+                dataset_name="train",
+                dataset=train_dataset,
+                indices=train_indices,
+                output_dir=scores_output_dir,
+                overwrite_output_dir=overwrite_output_dir,
+            )
+        if train_indices is not None:
+            train_dataset = data.Subset(dataset=train_dataset, indices=train_indices)
+            del train_indices
+
+        all_start_time = get_time(state=self.state)
+
+        self._reset_memory()
+        start_time = get_time(state=self.state)
+        with self.profiler.profile("Compute Pairwise Score"):
+            # Use batch_size=1 for PyTorch implementation since it processes samples individually
+            actual_batch_size = 1 if use_pytorch else per_device_train_batch_size
+            train_loader = self._get_dataloader(
+                dataset=train_dataset,
+                per_device_batch_size=actual_batch_size,
+                indices=None,
+                dataloader_params=dataloader_params,
+                allow_duplicates=False,
+                stack=False,
+            )
+            if use_pytorch:
+                grad_norms = pytorch_compute_gradient_norms_with_loaders(
+                    model=self.model,
+                    state=self.state,
+                    task=self.task,
+                    train_loader=train_loader,
+                    tracked_module_names=get_tracked_module_names(self.model),
+                    disable_tqdm=self.disable_tqdm,
+                    score_args=score_args,
+                )
+            else:
+                grad_norms = compute_gradient_norms_with_loaders(
+                    model=self.model,
+                    state=self.state,
+                    task=self.task,
+                    train_loader=train_loader,
+                    tracked_module_names=get_tracked_module_names(self.model),
+                    disable_tqdm=self.disable_tqdm,
+                    score_args=score_args,
+                )
+        end_time = get_time(state=self.state)
+        elapsed_time = end_time - start_time
+        self.logger.info(f"Computed pairwise influence scores in {elapsed_time:.2f} seconds.")
+
+        with self.profiler.profile("Save Pairwise Score"):
+            if self.state.is_main_process:
+                save_pairwise_scores(
+                    output_dir=scores_output_dir,
+                    scores=grad_norms,
+                )
+            self.state.wait_for_everyone()
+        self._reset_memory()
+        self.logger.info(f"Saved pairwise scores at {scores_output_dir}.")
+
+        all_end_time = get_time(state=self.state)
+        elapsed_time = all_end_time - all_start_time
+        self.logger.info(f"Fitted all gradient norms in {elapsed_time:.2f} seconds.")
+        self._log_profile_summary(name=f"scores_{query_name}_gradient_norm")
+
+        return grad_norms
 
     @torch.no_grad()
     def aggregate_pairwise_scores(self, scores_name: str) -> None:

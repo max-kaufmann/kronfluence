@@ -4,6 +4,9 @@ from typing import Any, Dict
 
 import torch
 from safetensors import safe_open
+from kronfluence.arguments import FactorArguments, ScoreArguments
+import hashlib
+from dataclasses import asdict
 
 
 def load_file(path: Path) -> Dict[str, torch.Tensor]:
